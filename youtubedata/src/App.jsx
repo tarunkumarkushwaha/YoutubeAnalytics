@@ -75,24 +75,21 @@ export default function App() {
   };
 
   const fetchVideos = async () => {
-    setLoading(true);
-    const res = await axios.post(`${API_BASE}/json`, payload);
-    setVideos(res.data.videos);
-    setLoading(false);
+    if (query) {
+      setLoading(true);
+      const res = await axios.post(`${API_BASE}/json`, payload);
+      setVideos(res.data.videos);
+      setLoading(false);
+    } else { alert("enter any keyword") }
   };
 
   const fetchKeywords = async () => {
-    setLoading(true);
-    const res = await axios.post(`${API_BASE}/keywords`, payload);
-    setKeywords(res.data.keywords);
-    // console.log(res.data.keywords)
-    setLoading(false);
-    // setTimeout(() => {
-    //   keywordSectionRef.current?.scrollIntoView({
-    //     behavior: "smooth",
-    //     block: "start",
-    //   });
-    // }, 100);
+    if (query) {
+      setLoading(true);
+      const res = await axios.post(`${API_BASE}/keywords`, payload);
+      setKeywords(res.data.keywords);
+      setLoading(false);
+    } else { alert("enter any keyword") }
   };
 
   useEffect(() => {
