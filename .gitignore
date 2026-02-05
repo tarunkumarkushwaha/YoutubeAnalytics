@@ -1,0 +1,46 @@
+# --------------------
+# Node & JS
+# --------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --------------------
+# Environment files
+# --------------------
+.env
+.env.*
+!.env.example
+
+# --------------------
+# Build outputs
+# --------------------
+dist/
+build/
+.out/
+
+# --------------------
+# Vite / React
+# --------------------
+.vite/
+
+# --------------------
+# OS junk
+# --------------------
+.DS_Store
+Thumbs.db
+
+# --------------------
+# Editor files
+# --------------------
+.vscode/
+.idea/
+*.swp
+
+# --------------------
+# Logs
+# --------------------
+logs/
+*.log
