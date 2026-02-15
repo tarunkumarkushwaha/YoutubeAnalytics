@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import axios from "axios";
+import DetailVeiwModal from "./components/DetailVeiwModal";
 
 const API_BASE = "http://localhost:5000/api/videos";
 const MAX_RESULTS = 200;
+const INITIAL_DISPLAY_COUNT = 20;
 
 const categories = [
   { id: "", name: "All Categories" },
@@ -24,16 +26,23 @@ const categories = [
   { id: 29, name: "Nonprofits & Activism" },
 ];
 
-
 export default function App() {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [detailmodal, setdetailmodal] = useState(false);
   const [videos, setVideos] = useState([]);
+  const [videoData, setvideoData] = useState({});
   const [keywords, setKeywords] = useState([]);
   const [selectedKeywords, setSelectedKeywords] = useState([]);
+  const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_COUNT); // Performance optimization
   const keywordSectionRef = useRef(null);
 
+  const getPayload = () => ({
+    query,
+    categoryId,
+    maxResults: MAX_RESULTS,
+  });
 
   const toggleKeyword = (keyword) => {
     setSelectedKeywords(prev =>
@@ -43,67 +52,73 @@ export default function App() {
     );
   };
 
-
   const copySelectedKeywords = async () => {
     if (!selectedKeywords.length) return;
-    const text = selectedKeywords.join(", ");
-    await navigator.clipboard.writeText(text);
-    alert(`copied ${selectedKeywords.length} keywords`)
-  };
-
-
-  const payload = {
-    query,
-    categoryId,
-    maxResults: MAX_RESULTS,
+    try {
+      const text = selectedKeywords.join(", ");
+      await navigator.clipboard.writeText(text);
+      alert(`Copied ${selectedKeywords.length} keywords to clipboard!`);
+    } catch (err) {
+      alert("Failed to copy keywords.");
+    }
   };
 
   const downloadCsv = async () => {
     setLoading(true);
-    const res = await axios.post(
-      `${API_BASE}/csv`,
-      payload,
-      { responseType: "blob" }
-    );
-
-    const url = window.URL.createObjectURL(new Blob([res.data]));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "youtube_data.csv";
-    link.click();
-    setLoading(false);
+    try {
+      const res = await axios.post(`${API_BASE}/csv`, getPayload(), { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `youtube_data_${Date.now()}.csv`;
+      link.click();
+    } catch (error) {
+      alert("Error downloading CSV");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchVideos = async () => {
-    if (query) {
-      setLoading(true);
-      const res = await axios.post(`${API_BASE}/json`, payload);
-      setVideos(res.data.videos);
+    if (!query.trim()) return alert("Please enter a search term");
+    setLoading(true);
+    setVideos([]);
+    setDisplayLimit(INITIAL_DISPLAY_COUNT);
+    try {
+      const res = await axios.post(`${API_BASE}/json`, getPayload());
+      setVideos(res.data.videos || []);
+    } catch (error) {
+      alert("Failed to fetch videos. Check if backend is running.");
+    } finally {
       setLoading(false);
-    } else { alert("enter any keyword") }
+    }
   };
 
   const fetchKeywords = async () => {
-    if (query) {
-      setLoading(true);
-      const res = await axios.post(`${API_BASE}/keywords`, payload);
-      setKeywords(res.data.keywords);
+    if (!query.trim()) return alert("Please enter a search term");
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/keywords`, getPayload());
+      setKeywords(res.data.keywords || []);
+    } catch (error) {
+      alert("Failed to fetch keywords.");
+    } finally {
       setLoading(false);
-    } else { alert("enter any keyword") }
+    }
   };
 
   useEffect(() => {
     if (keywords.length > 0 && keywordSectionRef.current) {
-      keywordSectionRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      keywordSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [keywords]);
+
+  const visibleVideos = useMemo(() => videos.slice(0, displayLimit), [videos, displayLimit]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-900">
       <div className="max-w-6xl mx-auto">
+
 
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -122,6 +137,7 @@ export default function App() {
           </button>
         </header>
 
+
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-6 border-b border-slate-100 bg-slate-50/50">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -129,9 +145,10 @@ export default function App() {
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1 ml-1">Search</label>
                 <input
                   className="w-full bg-white border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
-                  placeholder="e.g. Indian Recipies"
+                  placeholder="e.g. Indian Recipes"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && fetchVideos()}
                 />
               </div>
 
@@ -150,20 +167,25 @@ export default function App() {
 
               <div className="md:col-span-4 flex items-end gap-2">
                 <button
+                  disabled={loading}
                   onClick={fetchVideos}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer p-2.5 rounded-lg transition-all shadow-md shadow-blue-100 active:scale-95"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold cursor-pointer p-2.5 rounded-lg transition-all shadow-md active:scale-95"
                 >
-                  Fetch Videos
+                  {loading ? "Fetching..." : "Fetch Videos"}
                 </button>
                 <button
+                  disabled={loading}
                   onClick={fetchKeywords}
-                  className="flex-1 bg-orange-500 border border-slate-200 hover:bg-slate-500 cursor-pointer text-slate-100 font-semibold p-2.5 rounded-lg transition-all active:scale-95"
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold cursor-pointer p-2.5 rounded-lg transition-all active:scale-95"
                 >
                   Keywords
                 </button>
               </div>
             </div>
           </div>
+
+          <DetailVeiwModal data={videoData} detailmodal={detailmodal} closemodal={() => setdetailmodal(false)} />
+
           <div className="p-6">
             {videos.length > 0 ? (
               <div className="space-y-8">
@@ -175,64 +197,31 @@ export default function App() {
                   </div>
 
                   <div className="relative overflow-hidden border border-slate-200 rounded-xl shadow-sm bg-white">
-                    <div className="overflow-auto max-h-150">
+                    <div className="overflow-auto max-h-125">
                       <table className="w-full text-sm text-left border-collapse">
                         <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
                           <tr>
                             <th className="px-4 py-3 font-semibold text-slate-700 min-w-75">Video Details</th>
                             <th className="px-4 py-3 font-semibold text-slate-700">Category</th>
                             <th className="px-4 py-3 font-semibold text-slate-700">Published</th>
-                            <th className="px-4 py-3 font-semibold text-slate-700">Duration</th>
                             <th className="px-4 py-3 font-semibold text-slate-700 text-right">Stats</th>
-                            <th className="px-4 py-3 font-semibold text-slate-700 text-center">CC</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {videos.map((v, i) => (
-                            <tr key={v.videoId + i} className="hover:bg-blue-50/30 transition-colors">
+                          {visibleVideos.map((v, i) => (
+                            <tr key={`${v.videoId}-${i}`} onClick={() => { setvideoData(v); setdetailmodal(true); }} className="hover:bg-blue-50/30 transition-colors cursor-pointer">
                               <td className="px-4 py-4">
-                                <div className="flex flex-col gap-1">
-                                  <a href={v.url} target="_blank" rel="noreferrer" className="text-blue-600 font-bold hover:underline line-clamp-2 leading-snug">
-                                    {v.title}
-                                  </a>
-                                  <div className="text-xs text-slate-500 flex items-center gap-2">
-                                    <span className="font-medium text-slate-700">{v.channel}</span>
-                                    <span>•</span>
-                                    <span className="truncate max-w-37.5 italic">ID: {v.videoId}</span>
-                                  </div>
-                                </div>
+                                <div className="text-blue-600 font-bold line-clamp-2">{v.title}</div>
+                                <div className="text-xs text-slate-500 mt-1">{v.channel}</div>
                               </td>
-                              <td className="px-4 py-4 text-xs font-medium">
-                                <span className="px-2 py-1 rounded-md bg-purple-50 text-purple-700 border border-purple-100">
-                                  {v.category}
-                                </span>
+                              <td className="px-4 py-4">
+                                <span className="px-2 py-1 rounded-md bg-purple-50 text-purple-700 text-xs border border-purple-100">{v.category}</span>
                               </td>
                               <td className="px-4 py-4 text-slate-600 whitespace-nowrap">
-                                {new Date(v.publishedAt).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })}
+                                {new Date(v.publishedAt).toLocaleDateString()}
                               </td>
-                              <td className="px-4 py-4 font-mono text-slate-500">
-                                {v.duration.replace('PT', '').replace('H', ':').replace('M', ':').replace('S', '')}
-                              </td>
-                              <td className="px-4 py-4 text-right">
-                                <div className="flex flex-col items-end">
-                                  <span className="font-bold text-slate-900">
-                                    {Number(v.viewCount).toLocaleString()} views
-                                  </span>
-                                  <span className="text-xs text-slate-500">
-                                    {Number(v.commentCount).toLocaleString()} comments
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-4 text-center">
-                                {v.captionsAvailable ? (
-                                  <span className="text-green-600 text-xs font-bold px-1.5 py-0.5 border border-green-200 bg-green-50 rounded">CC</span>
-                                ) : (
-                                  <span className="text-slate-300 text-xs">—</span>
-                                )}
+                              <td className="px-4 py-4 text-right font-medium">
+                                {Number(v.viewCount).toLocaleString()} views
                               </td>
                             </tr>
                           ))}
@@ -240,78 +229,59 @@ export default function App() {
                       </table>
                     </div>
                   </div>
+
+
+                  {displayLimit < videos.length && (
+                    <div className="mt-4 text-center">
+                      <button
+                        onClick={() => setDisplayLimit(prev => prev + 20)}
+                        className="text-sm font-semibold cursor-pointer text-blue-600 hover:text-blue-800"
+                      >
+                        Load More Results +20
+                      </button>
+                    </div>
+                  )}
                 </section>
               </div>
             ) : (
               <div className="py-10 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                </div>
-                {loading ? <p className="text-slate-500">Processing...</p> : <p className="text-slate-500">No Video data.</p>}
+                {loading ? <p className="text-blue-600 animate-pulse font-medium">Analyzing YouTube data, please wait...</p> : <p className="text-slate-400">No data found. Try a different search.</p>}
               </div>
             )}
-            {keywords.length > 0 && (
-              <section ref={keywordSectionRef} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold">
-                    Top Keywords
-                    <span className="ml-2 text-xs bg-slate-100 px-2 py-0.5 rounded-full">
-                      {keywords.length}
-                    </span>
-                  </h2>
 
-                  {selectedKeywords.length > 0 && (<div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={copySelectedKeywords}
-                      className="text-xs cursor-copy bg-green-600 text-white px-3 py-1.5 rounded-full hover:bg-green-700 transition"
-                    >
-                      Copy {selectedKeywords.length}
-                    </button>
-                    <button
-                      onClick={() => setSelectedKeywords([])}
-                      className="text-xs cursor-pointer bg-red-600 text-white px-3 py-1.5 rounded-full hover:bg-green-700 transition"
-                    >
-                      clear
-                    </button>
+
+            {keywords.length > 0 && (
+              <section ref={keywordSectionRef} className="mt-12 pt-8 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold">Top Keywords</h2>
+                  <div className="flex gap-2">
+                    {selectedKeywords.length > 0 && (
+                      <>
+                        <button onClick={copySelectedKeywords} className="text-xs bg-green-600 text-white px-4 py-2 rounded-full hover:bg-green-700 transition">
+                          Copy {selectedKeywords.length}
+                        </button>
+                        <button onClick={() => setSelectedKeywords([])} className="text-xs bg-slate-200 text-slate-600 px-4 py-2 rounded-full hover:bg-slate-300">
+                          Clear
+                        </button>
+                      </>
+                    )}
                   </div>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {keywords.map((k, i) => {
-                    const isSelected = selectedKeywords.includes(k.keyword);
-
-                    return (
-                      <div
-                        key={k.keyword + i}
-
-                        onClick={() => toggleKeyword(k.keyword)}
-                        className={`cursor-pointer p-3 rounded-xl border transition-all select-none
-                             ${isSelected
-                            ? "border-green-500 bg-blue-50 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
-                          }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {/* <input
-                                type="checkbox"
-                                checked={isSelected}
-                                readOnly
-                                className="mt-1 rounded border-slate-300 text-blue-600"
-                              /> */}
-
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-800 truncate">
-                              {k.keyword}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {k.count} appearances
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {keywords.map((k, i) => (
+                    <div
+                      key={`${k.keyword}-${i}`}
+                      onClick={() => toggleKeyword(k.keyword)}
+                      className={`cursor-pointer p-3 rounded-xl border transition-all select-none ${selectedKeywords.includes(k.keyword)
+                        ? "border-green-500 bg-green-50"
+                        : "border-slate-200 bg-white hover:border-blue-300"
+                        }`}
+                    >
+                      <div className="font-bold text-slate-800 truncate">{k.keyword}</div>
+                      <div className="text-xs text-slate-500">{k.count} uses</div>
+                    </div>
+                  ))}
                 </div>
               </section>
             )}

@@ -95,24 +95,61 @@ async function fetchVideoDetails(videoIds) {
     },
   });
 
-  return res.data.items.map(video => ({
-    videoId: video.id,
-    url: `https://www.youtube.com/watch?v=${video.id}`,
+  // console.log(res.data)
 
+  return res.data.items.map(video => ({
+    // 1. IDENTIFIERS & ETAGS
+    kind: video.kind,
+    etag: video.etag,
+    videoId: video.id,
+    videoUrl: `https://www.youtube.com/watch?v=${video.id}`,
+
+    // 2. SNIPPET (Basic Info)
+    publishedAt: video.snippet.publishedAt,
+    channelId: video.snippet.channelId,
     title: video.snippet.title,
     description: video.snippet.description,
-    channel: video.snippet.channelTitle,
-    keywords: video.snippet.tags
-      ? video.snippet.tags.join(", ")
-      : "N/A",
+    channelTitle: video.snippet.channelTitle,
+    tags: video.snippet.tags || [], // Returns the raw array
+    keywords: video.snippet.tags ? video.snippet.tags.join(", ") : "N/A", // Returns as string
     categoryId: video.snippet.categoryId,
-    category: categoryMapping[video.snippet.categoryId] || "N/A",
-    publishedAt: video.snippet.publishedAt,
+    categoryName: categoryMapping[video.snippet.categoryId] || "N/A",
+    liveBroadcastContent: video.snippet.liveBroadcastContent,
+    defaultLanguage: video.snippet.defaultLanguage || "N/A",
+    defaultAudioLanguage: video.snippet.defaultAudioLanguage || "N/A",
+
+    // 3. THUMBNAILS (All resolutions)
+    thumbnails: {
+      default: video.snippet.thumbnails.default?.url,
+      medium: video.snippet.thumbnails.medium?.url,
+      high: video.snippet.thumbnails.high?.url,
+      standard: video.snippet.thumbnails.standard?.url,
+      maxres: video.snippet.thumbnails.maxres?.url
+    },
+
+    // 4. LOCALIZED CONTENT
+    localized: {
+      title: video.snippet.localized?.title,
+      description: video.snippet.localized?.description
+    },
+
+    // 5. CONTENT DETAILS (Technical Specs)
     duration: video.contentDetails.duration,
+    dimension: video.contentDetails.dimension, // e.g., "2d"
+    definition: video.contentDetails.definition, // e.g., "hd"
+    caption: video.contentDetails.caption === "true", 
+    licensedContent: video.contentDetails.licensedContent,
+    projection: video.contentDetails.projection, 
+    contentRating: video.contentDetails.contentRating, 
+
+    // 6. STATISTICS (Engagement)
     viewCount: Number(video.statistics.viewCount || 0),
+    likeCount: Number(video.statistics.likeCount || 0),
+    favoriteCount: Number(video.statistics.favoriteCount || 0),
     commentCount: Number(video.statistics.commentCount || 0),
-    captionsAvailable: video.contentDetails.caption === "true",
-    location: "N/A",
+
+    // 7. SUPPLEMENTARY
+    location: "N/A" 
   }));
 }
 
