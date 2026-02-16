@@ -7,6 +7,9 @@ export default function App() {
   const [Token, setToken] = useState(() => {
     return localStorage.getItem("adfsfgshhd") === "true";
   });
+ 
+  // let backend_url = "https://youtubeanalytics-adrr.onrender.com"
+  let backend_url = "http://localhost:5000"
 
   const handleSetToken = (val) => {
     setToken(val);
@@ -16,7 +19,7 @@ export default function App() {
     <>
       <Navbar Token={Token} handleSetToken={handleSetToken} />
       {!Token && <Login Token={Token} setToken={setToken} handleSetToken={handleSetToken} />}
-      {Token && <Main />}
+      {Token && <Main backend_url={backend_url} />}
     </>
   )
 }

@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import axios from "axios";
 import DetailVeiwModal from "../components/DetailVeiwModal";
-
-const API_BASE = "http://localhost:5000/api/videos";
 const MAX_RESULTS = 200;
 const INITIAL_DISPLAY_COUNT = 20;
 
@@ -26,7 +24,7 @@ const categories = [
     { id: 29, name: "Nonprofits & Activism" },
 ];
 
-export default function Main() {
+export default function Main({backend_url}) {
     const [query, setQuery] = useState("");
     const [categoryId, setCategoryId] = useState("");
     const [loading, setLoading] = useState(false);
@@ -37,6 +35,8 @@ export default function Main() {
     const [selectedKeywords, setSelectedKeywords] = useState([]);
     const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_COUNT); // Performance optimization
     const keywordSectionRef = useRef(null);
+
+    const API_BASE = `${backend_url}/api/videos`;
 
     const getPayload = () => ({
         query,

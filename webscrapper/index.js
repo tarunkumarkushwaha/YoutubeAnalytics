@@ -13,10 +13,21 @@ app.use(express.json());
 const API_KEY = process.env.YT_API_KEY;
 const BASE_URL = "https://www.googleapis.com/youtube/v3";
 
+const allowedOrigins = process.env.ALLOWED_URL ? process.env.ALLOWED_URL.split(',') : [];
+
 app.use(cors({
-  origin: process.env.ALLOWED_URL,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
+  credentials: true
 }));
 
 const categoryMapping = {
@@ -137,10 +148,10 @@ async function fetchVideoDetails(videoIds) {
     duration: video.contentDetails.duration,
     dimension: video.contentDetails.dimension, // e.g., "2d"
     definition: video.contentDetails.definition, // e.g., "hd"
-    caption: video.contentDetails.caption === "true", 
+    caption: video.contentDetails.caption === "true",
     licensedContent: video.contentDetails.licensedContent,
-    projection: video.contentDetails.projection, 
-    contentRating: video.contentDetails.contentRating, 
+    projection: video.contentDetails.projection,
+    contentRating: video.contentDetails.contentRating,
 
     // 6. STATISTICS (Engagement)
     viewCount: Number(video.statistics.viewCount || 0),
@@ -149,7 +160,7 @@ async function fetchVideoDetails(videoIds) {
     commentCount: Number(video.statistics.commentCount || 0),
 
     // 7. SUPPLEMENTARY
-    location: "N/A" 
+    location: "N/A"
   }));
 }
 
