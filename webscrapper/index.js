@@ -185,6 +185,10 @@ function getKeywordFrequency(videos) {
     .map(([keyword, count]) => ({ keyword, count }));
 }
 
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
 app.post("/api/videos/export", async (req, res) => {
   const videos = await fetchVideos(req.body);
   const filePath = path.resolve("youtube_data.csv");

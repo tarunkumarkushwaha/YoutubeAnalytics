@@ -66,7 +66,7 @@ export default function Main({backend_url}) {
     const downloadCsv = async () => {
         setLoading(true);
         try {
-            const res = await axios.post(`${API_BASE}/csv`, getPayload(), { responseType: "blob" });
+            const res = await axios.post(`${API_BASE}/export`, getPayload(), { responseType: "blob" });
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement("a");
             link.href = url;
