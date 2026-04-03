@@ -1,17 +1,35 @@
 import express from "express";
-import axios from "axios";
-import { writeToPath } from "fast-csv";
-import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
+import youtubeRoutes from "./routes/youtube.js"
+import connectDB from "./db.js";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser"
+import User from "./models/User.js"
+import jwt from 'jsonwebtoken';
+
 dotenv.config();
-
-
 const app = express();
 app.use(express.json());
+app.use(helmet());
+app.use(cookieParser());
 
-const API_KEY = process.env.YT_API_KEY;
-const BASE_URL = "https://www.googleapis.com/youtube/v3";
+// Connect DB
+connectDB();
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // Max 10 attempts per 15 mins
+  message: "Too many attempts, try again later."
+});
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 const allowedOrigins = process.env.ALLOWED_URL ? process.env.ALLOWED_URL.split(',') : [];
 
@@ -26,193 +44,119 @@ app.use(cors({
     }
   },
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
-
-const categoryMapping = {
-  1: 'Film & Animation',
-  2: 'Autos & Vehicles',
-  10: 'Music',
-  15: 'Pets & Animals',
-  17: 'Sports',
-  18: 'Short Movies',
-  19: 'Travel & Events',
-  20: 'Gaming',
-  21: 'Videoblogging',
-  22: 'People & Blogs',
-  23: 'Comedy',
-  24: 'Entertainment',
-  25: 'News & Politics',
-  26: 'How-to & Style',
-  27: 'Education',
-  28: 'Science & Technology',
-  29: 'Nonprofits & Activism',
-  30: 'Movies',
-  31: 'Anime/Animation',
-  32: 'Action/Adventure',
-  33: 'Classics',
-  34: 'Comedy',
-  35: 'Documentary',
-  36: 'Drama',
-  37: 'Family',
-  38: 'Foreign',
-  39: 'Horror',
-  40: 'Sci-Fi/Fantasy',
-  41: 'Thriller',
-  42: 'Shorts',
-  43: 'Shows',
-  44: 'Trailers',
-};
-
-async function fetchVideos({ query, categoryId, maxResults = 50 }) {
-  let videos = [];
-  let pageToken = "";
-
-  while (videos.length < maxResults) {
-    const params = {
-      key: API_KEY,
-      part: "snippet",
-      type: "video",
-      maxResults: 50,
-      pageToken,
-    };
-
-    if (query?.trim()) params.q = query;
-    if (categoryId) params.videoCategoryId = categoryId;
-
-    const res = await axios.get(`${BASE_URL}/search`, { params });
-
-    const ids = res.data.items.map(i => i.id.videoId);
-    if (!ids.length) break;
-
-    const details = await fetchVideoDetails(ids);
-    videos.push(...details);
-
-    pageToken = res.data.nextPageToken;
-    if (!pageToken) break;
-  }
-
-  return videos.slice(0, maxResults);
-}
-
-
-async function fetchVideoDetails(videoIds) {
-  const res = await axios.get(`${BASE_URL}/videos`, {
-    params: {
-      key: API_KEY,
-      id: videoIds.join(","),
-      part: "snippet,contentDetails,statistics",
-    },
-  });
-
-  // console.log(res.data)
-
-  return res.data.items.map(video => ({
-    // 1. IDENTIFIERS & ETAGS
-    kind: video.kind,
-    etag: video.etag,
-    videoId: video.id,
-    videoUrl: `https://www.youtube.com/watch?v=${video.id}`,
-
-    // 2. SNIPPET (Basic Info)
-    publishedAt: video.snippet.publishedAt,
-    channelId: video.snippet.channelId,
-    title: video.snippet.title,
-    description: video.snippet.description,
-    channelTitle: video.snippet.channelTitle,
-    tags: video.snippet.tags || [], // Returns the raw array
-    keywords: video.snippet.tags ? video.snippet.tags.join(", ") : "N/A", // Returns as string
-    categoryId: video.snippet.categoryId,
-    categoryName: categoryMapping[video.snippet.categoryId] || "N/A",
-    liveBroadcastContent: video.snippet.liveBroadcastContent,
-    defaultLanguage: video.snippet.defaultLanguage || "N/A",
-    defaultAudioLanguage: video.snippet.defaultAudioLanguage || "N/A",
-
-    // 3. THUMBNAILS (All resolutions)
-    thumbnails: {
-      default: video.snippet.thumbnails.default?.url,
-      medium: video.snippet.thumbnails.medium?.url,
-      high: video.snippet.thumbnails.high?.url,
-      standard: video.snippet.thumbnails.standard?.url,
-      maxres: video.snippet.thumbnails.maxres?.url
-    },
-
-    // 4. LOCALIZED CONTENT
-    localized: {
-      title: video.snippet.localized?.title,
-      description: video.snippet.localized?.description
-    },
-
-    // 5. CONTENT DETAILS (Technical Specs)
-    duration: video.contentDetails.duration,
-    dimension: video.contentDetails.dimension, // e.g., "2d"
-    definition: video.contentDetails.definition, // e.g., "hd"
-    caption: video.contentDetails.caption === "true",
-    licensedContent: video.contentDetails.licensedContent,
-    projection: video.contentDetails.projection,
-    contentRating: video.contentDetails.contentRating,
-
-    // 6. STATISTICS (Engagement)
-    viewCount: Number(video.statistics.viewCount || 0),
-    likeCount: Number(video.statistics.likeCount || 0),
-    favoriteCount: Number(video.statistics.favoriteCount || 0),
-    commentCount: Number(video.statistics.commentCount || 0),
-
-    // 7. SUPPLEMENTARY
-    location: "N/A"
-  }));
-}
-
-
-function getKeywordFrequency(videos) {
-  const frequency = {};
-
-  videos.forEach(video => {
-    if (!video.keywords || video.keywords === "N/A") return;
-
-    video.keywords
-      .split(",")
-      .map(k => k.trim().toLowerCase())
-      .forEach(k => {
-        if (!k) return;
-        frequency[k] = (frequency[k] || 0) + 1;
-      });
-  });
-
-  return Object.entries(frequency)
-    .sort((a, b) => b[1] - a[1])
-    .map(([keyword, count]) => ({ keyword, count }));
-}
 
 app.get('/ping', (req, res) => {
   res.status(200).send('pong');
 });
 
-app.post("/api/videos/export", async (req, res) => {
-  const videos = await fetchVideos(req.body);
-  const filePath = path.resolve("youtube_data.csv");
+// Login route
 
-  writeToPath(filePath, videos, { headers: true })
-    .on("finish", () => res.download(filePath));
+app.post("/login", authLimiter, async (req, res) => {
+  try {
+    // const { username, password } = req.body;
+    const username = req.body.username ? String(req.body.username).trim() : null;
+    const password = req.body.password ? String(req.body.password) : null;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Use schema method
+    const isMatch = await user.comparePassword(password.trim());
+    if (!isMatch) {
+      return res.status(401).json({ error: "Wrong password" });
+    }
+
+    const accessToken = jwt.sign(
+      { userId: user._id, username: user.username },
+      process.env.ACCESS_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user._id, username: user.username },
+      process.env.REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.cookie("refreshToken", refreshToken, COOKIE_OPTIONS);
+
+    res.json({ success: true, accessToken });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error logging in" });
+  }
 });
 
-app.post("/api/videos/json", async (req, res) => {
-  const videos = await fetchVideos(req.body);
-  res.json({ count: videos.length, videos });
+
+// signup route 
+
+app.post("/signup", authLimiter, async (req, res) => {
+  try {
+    const username = req.body.username ? String(req.body.username).trim() : null;
+    const password = req.body.password ? String(req.body.password) : null;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const existing = await User.findOne({ username });
+    if (existing) {
+      return res.status(400).json({ error: "Username already taken" });
+    }
+
+    const user = new User({
+      username,
+      password: password.trim()
+    });
+
+    await user.save();
+
+    res.json({ message: "User created successfully" });
+  } catch (err) {
+    // console.error(err);
+    res.status(500).json({ error: "Error creating user" });
+  }
 });
 
-app.post("/api/videos/keywords", async (req, res) => {
-  const videos = await fetchVideos(req.body);
-  const keywords = getKeywordFrequency(videos);
 
-  res.json({
-    totalVideos: videos.length,
-    uniqueKeywords: keywords.length,
-    keywords,
+
+app.post("/refresh", (req, res) => {
+  const token = req.cookies.refreshToken;
+
+  if (!token) {
+    return res.status(200).json({ accessToken: null, message: "No refresh token" });
+  }
+
+  jwt.verify(token, process.env.REFRESH_SECRET, (err, decoded) => {
+    if (err) {
+      res.clearCookie("refreshToken", COOKIE_OPTIONS);
+      return res.status(401).json({ accessToken: null });
+    }
+
+    const accessToken = jwt.sign(
+      { userId: decoded.userId, username: decoded.username },
+      process.env.ACCESS_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.json({ accessToken });
   });
 });
 
+// Logout route
+app.post("/logout", (req, res) => {
+  res.clearCookie("refreshToken", COOKIE_OPTIONS);
+  res.json({ message: "Logged out successfully" });
+});
 
+app.use("/api/videos", youtubeRoutes);
 app.listen(5000, () => console.log("Server running on port 5000"));
-

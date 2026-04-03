@@ -1,84 +1,152 @@
-import React, { useState } from 'react';
+import { Link, useNavigate } from "react-router-dom"
+import { useState } from "react"
+import { useContext } from 'react';
+import { Context } from "../MyContext";
 
-const Login = ({ handleSetToken }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+const Login = () => {
+  const [password, setpassword] = useState("")
+  const { userName, setuserName, backendURL, setAccessToken, loading, setLoading, accessToken } = useContext(Context);
 
-    const handleLogin = (e) => {
-        e.preventDefault();
-        const envEmail = import.meta.env.VITE_ALLOWED_EMAIL;
-        const envPass = import.meta.env.VITE_ALLOWED_PASSWORD;
+  let navigate = useNavigate()
 
-        if (email === envEmail && password === envPass) {
-            handleSetToken(true);
-        } else {
-            alert("Invalid credentials");
-        }
-    };
+  const handleSignin = async () => {
+    if (!userName || !password) {
+      alert("Please enter username and password");
+      return;
+    }
+    setLoading(true);
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-100 to-slate-200 p-4">
-            <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+    try {
+      const res = await fetch(`${backendURL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: userName,
+          password: password.trim()
+        }),
+        credentials: "include",
+      });
 
-                <div className="p-8 pb-0">
-                    <div>
-                        <h2 className="text-xl font-extrabold tracking-tight text-center text-slate-900 sm:text-3xl">
-                            YouTube <span className="text-red-600">Data</span> Analyzer
-                        </h2>
-                        <p className="text-slate-500 text-center mt-2">Extract insights and keywords from video trends.</p>
-                    </div>
+      if (!res.ok) {
+        const msg = await res.text();
+        alert(msg || "Login failed");
+        return;
+      }
+
+      const data = await res.json();
+      setAccessToken(data.accessToken);
+
+      // alert(`User ${userName} signed in successfully`);
+      navigate("/youtube");
+
+    } catch (err) {
+      console.log("Server error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // console.log(accessToken)
+
+
+  return (
+    <>
+      <>
+
+        <section className="smooth-entry w-full max-w-md">
+
+          <div className="rounded-2xl bg-linear-to-br from-slate-950/80 via-slate-900/70 to-slate-950/80 backdrop-blur-xl 
+          border border-white/10 shadow-2xl shadow-black/40">
+
+            <div className="p-8 space-y-6">
+
+              <div className="text-center">
+
+                <p className="text-2xl md:text-3xl font-extrabold text-white">
+                  Sign in to continue
+                </p>
+              </div>
+
+
+              <div className="space-y-5">
+
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block mb-1 text-sm font-medium text-slate-200"
+                  >
+                    Email or Username
+                  </label>
+                  <input
+                    value={userName}
+                    onChange={(e) => setuserName(e.target.value)}
+                    type="email"
+                    name="email"
+                    id="email"
+                    placeholder="yourname@anymail.com"
+                    required
+                    className="w-full rounded-lg px-4 py-2.5 text-sm
+                    bg-white/10 text-white placeholder-slate-400
+                    border border-white/10
+                    focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
                 </div>
-                <form onSubmit={handleLogin} className="p-8 space-y-5">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">
-                            Email Address
-                        </label>
-                        <input
-                            type="email"
-                            required
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all placeholder:text-slate-300"
-                            placeholder="name@tarun.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                        />
-                    </div>
 
-                    <div>
-                        <div className="flex justify-between mb-2 ml-1">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                Password
-                            </label>
-                          
-                        </div>
-                        <input
-                            type="password"
-                            required
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all placeholder:text-slate-300"
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </div>
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="block mb-1 text-sm font-medium text-slate-200"
+                  >
+                    Password
+                  </label>
+                  <input
+                    value={password}
+                    onChange={(e) => setpassword(e.target.value.trim())}
+                    type="password"
+                    name="password"
+                    id="password"
+                    placeholder="••••••••"
+                    required
+                    className="w-full rounded-lg px-4 py-2.5 text-sm
+                    bg-white/10 text-white placeholder-slate-400
+                    border border-white/10
+                    focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
 
-                    <button
-                        type="submit"
-                        className="w-full cursor-pointer py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-[0.98] mt-2"
-                    >
-                        Sign In
-                    </button>
-                </form>
+                <button
+                  onClick={handleSignin}
+                  disabled={loading}
+                  className={`w-full rounded-xl py-3 text-sm font-semibold text-white
+                  bg-linear-to-r from-green-400 to-blue-600
+                  shadow-lg shadow-blue-500/30
+                  transition-all duration-300
+                  hover:shadow-blue-500/50 hover:-translate-y-0.5
+                  active:scale-95
+                  ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {loading ? "Signing in..." : "Sign In"}
+                </button>
 
-                {/* <div className="p-8 pt-0 text-center">
-          <p className="text-sm text-slate-500">
-            Don't have an account?{' '}
-            <a href="#" className="font-bold text-blue-600 hover:underline">
-              Create one
-            </a>
-          </p>
-        </div> */}
+                <p className="text-center text-sm text-slate-400">
+                  Don’t have an account yet?{" "}
+                  <Link
+                    to="/signup"
+                    className="font-medium text-sky-400 hover:underline"
+                  >
+                    Sign up
+                  </Link>
+                </p>
+
+              </div>
             </div>
-        </div>
-    );
-};
+          </div>
 
-export default Login;
+        </section>
+      </>
+    </>
+
+  )
+}
+
+export default Login
