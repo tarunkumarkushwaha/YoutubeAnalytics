@@ -3,6 +3,7 @@ import { Context } from "../MyContext";
 import { useContext } from 'react';
 import axios from "axios";
 import DetailVeiwModal from "../components/DetailVeiwModal";
+import api from "../api/api";
 const MAX_RESULTS = 200;
 const INITIAL_DISPLAY_COUNT = 20;
 
@@ -39,7 +40,7 @@ export default function Youtube() {
     const keywordSectionRef = useRef(null);
     const { backendURL, isServerReady, loading, setLoading, accessToken } = useContext(Context);
 
-    const API_BASE = `${backendURL}/api/videos`;
+    // const API_BASE = `${backendURL}/api/videos`;
 
     const getPayload = () => ({
         query,
@@ -69,20 +70,23 @@ export default function Youtube() {
     const downloadCsv = async () => {
         setLoading(true);
         try {
-            const res = await axios.post(`${API_BASE}/export`, getPayload(), {
+            const res = await api.post(`/export`, getPayload(), {
                 responseType: "blob",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`
-                }
-            }
-            );
+            });
+
+            // Creatngg download link
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement("a");
             link.href = url;
             link.download = `youtube_data_${Date.now()}.csv`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
         } catch (error) {
-            alert("Error downloading CSV");
+            console.error("Download error:", error);
+            alert("Error downloading CSV. Your session may have expired.");
         } finally {
             setLoading(false);
         }
@@ -94,13 +98,14 @@ export default function Youtube() {
         setVideos([]);
         setDisplayLimit(INITIAL_DISPLAY_COUNT);
         try {
-            const res = await axios.post(`${API_BASE}/json`, getPayload(), {
-                responseType: "json",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`
-                }
-            }
-            );
+            const res = await api.post(`/json`, getPayload());
+            // const res = await axios.post(`${API_BASE}/json`, getPayload(), {
+            //     responseType: "json",
+            //     headers: {
+            //         Authorization: `Bearer ${accessToken}`
+            //     }
+            // }
+            // );
             setVideos(res.data.videos || []);
         } catch (error) {
             alert("Failed to fetch videos. Check if backend is running.");
@@ -113,16 +118,10 @@ export default function Youtube() {
         if (!query.trim()) return alert("Please enter a search term");
         setLoading(true);
         try {
-            const res = await axios.post(`${API_BASE}/keywords`, getPayload(), {
-                responseType: "json",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`
-                }
-            }
-            );
+            const res = await api.post(`/keywords`, getPayload());
             setKeywords(res.data.keywords || []);
         } catch (error) {
-            alert("Failed to fetch keywords.");
+            alert("Session expired. Please log in again.");
         } finally {
             setLoading(false);
         }

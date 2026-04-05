@@ -5,7 +5,7 @@ import { Context } from "../MyContext";
 
 const Login = () => {
   const [password, setpassword] = useState("")
-  const { userName, setuserName, backendURL, setAccessToken, loading, setLoading, accessToken } = useContext(Context);
+  const { userName, setuserName, backendURL, setAccessToken, loading, setLoading, isServerReady } = useContext(Context);
 
   let navigate = useNavigate()
 
@@ -46,7 +46,23 @@ const Login = () => {
     }
   };
 
-  // console.log(accessToken)
+  if (!isServerReady) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+        {/* <div>
+          <h2 className="text-xl font-extrabold tracking-tight text-center text-slate-900 sm:text-3xl">
+            YouTube <span className="text-red-600">Data</span> Analyzer
+          </h2>
+          <p className="text-slate-500 text-center mt-2">Extract insights and keywords from video trends.</p>
+        </div> */}
+        <h2 className="text-2xl font-bold text-slate-800 animate-pulse">Waking up Server...</h2>
+        <p className="text-slate-500 mt-2 text-center max-w-xs">
+          Render's free tier puts the backend to sleep. This may take 30-50 seconds. Please stay on this page.
+        </p>
+      </div>
+    );
+  }
 
 
   return (

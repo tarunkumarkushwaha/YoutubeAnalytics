@@ -133,13 +133,16 @@ app.post("/refresh", (req, res) => {
   const token = req.cookies.refreshToken;
 
   if (!token) {
-    return res.status(200).json({ accessToken: null, message: "No refresh token" });
+    return res.status(200).json({ accessToken: null, authenticated: false });
   }
 
   jwt.verify(token, process.env.REFRESH_SECRET, (err, decoded) => {
     if (err) {
       res.clearCookie("refreshToken", COOKIE_OPTIONS);
-      return res.status(401).json({ accessToken: null });
+      return res.status(403).json({
+        success: false,
+        message: "Invalid or expired refresh token"
+      });
     }
 
     const accessToken = jwt.sign(
@@ -148,7 +151,7 @@ app.post("/refresh", (req, res) => {
       { expiresIn: "15m" }
     );
 
-    res.json({ accessToken });
+    res.json({ success: true, accessToken });
   });
 });
 

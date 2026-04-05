@@ -13,6 +13,7 @@ import ErrorPage from "./pages/ErrorPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Youtube from "./pages/Youtube";
 import Mainlayout from "./layout/Mainlayout";
+import { setupInterceptors } from "./api/api";
 
 function App() {
   const [accessToken, setAccessToken] = useState(null);
@@ -20,8 +21,12 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isServerReady, setIsServerReady] = useState(false);
-  const backendURL = "http://localhost:5000";
-  // const backendURL = "https://youtubeanalytics-adrr.onrender.com";
+  // const backendURL = "http://localhost:5000";
+  const backendURL = "https://youtubeanalytics-adrr.onrender.com";
+
+  useEffect(() => {
+    setupInterceptors(accessToken, setAccessToken);
+  }, [accessToken]);
 
 
   useEffect(() => {
@@ -31,14 +36,17 @@ function App() {
           method: "POST",
           credentials: "include",
         });
+        if (res.status === 401 || res.status === 403) {
+          setAccessToken(null);
+          return;
+        }
 
         const data = await res.json();
-
         if (data?.accessToken) {
           setAccessToken(data.accessToken);
         }
       } catch (err) {
-        console.log("Error refreshing token:", err);
+        console.error("Network or Server error:", err);
       } finally {
         setAuthLoading(false);
       }

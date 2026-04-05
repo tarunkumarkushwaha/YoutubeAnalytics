@@ -25,6 +25,8 @@ const Navbar = () => {
         }
     };
 
+    // console.log(accessToken,"uio")
+
     return (
         <>
             <header className="mb-8 flex flex-col md:flex-row items-center justify-center w-full md:justify-between gap-4">
